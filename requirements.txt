@@ -26,7 +26,8 @@ geopy==2.4.0
 
 # Notifications (Free tier)
 sendgrid==6.10.0  # Free tier - 100 emails/day
-requests==2.31.0  # For SMS API calls (Africa's Talking)
+africastalking==1.2.5  # SMS via Africa's Talking
+requests==2.31.0
 
 # Utilities
 Pillow==10.1.0  # Image processing
