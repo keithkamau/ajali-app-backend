@@ -1,15 +1,23 @@
 from rest_framework import permissions, viewsets
 
 from .models import Incident
+from .pagination import IncidentPagination
+from .permissions import IsIncidentOwner
 from .serializers import IncidentSerializer
 
 
 class IncidentViewSet(viewsets.ModelViewSet):
     serializer_class = IncidentSerializer
     permission_classes = (permissions.IsAuthenticated,)
+    pagination_class = IncidentPagination
 
     def get_queryset(self):
         return Incident.objects.filter(user=self.request.user).prefetch_related("media", "status_history")
+
+    def get_permissions(self):
+        if self.action in ("retrieve", "update", "partial_update", "destroy"):
+            return [permissions.IsAuthenticated(), IsIncidentOwner()]
+        return super().get_permissions()
 
     def perform_create(self, serializer):
         incident = serializer.save(user=self.request.user)

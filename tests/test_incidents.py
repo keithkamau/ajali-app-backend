@@ -37,7 +37,7 @@ class IncidentApiTests(TestCase):
 		response = self.client.get("/api/incidents/")
 
 		self.assertEqual(response.status_code, 200)
-		self.assertEqual(len(response.data), 0)
+		self.assertEqual(response.data["count"], 0)
 
 	def test_status_change_creates_history(self):
 		incident = create_incident(user=self.user, validated_data=self.payload)

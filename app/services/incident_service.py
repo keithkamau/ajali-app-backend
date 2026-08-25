@@ -1,6 +1,7 @@
 from django.db import transaction
 
 from app.models import Incident, IncidentMedia, IncidentStatusHistory
+from app.validators import validate_media_upload
 
 
 @transaction.atomic
@@ -33,6 +34,11 @@ def change_status(*, incident, changed_by, new_status, comment=""):
 
 
 def attach_media(*, incident, media_type, media_url, mime_type, file_size_bytes, public_id=""):
+	validate_media_upload(
+		media_type=media_type,
+		mime_type=mime_type,
+		file_size_bytes=file_size_bytes,
+	)
 	return IncidentMedia.objects.create(
 		incident=incident,
 		media_type=media_type,
