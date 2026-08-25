@@ -1,107 +1,59 @@
 from marshmallow import Schema, fields, validate, ValidationError
-from email_validator import validate_email, EmailNotValidError
+import re
 
-def validate_email_format(email):
-    """Validate email format using email-validator"""
-    try:
-        validate_email(email)
-    except EmailNotValidError:
-        raise ValidationError('Invalid email address')
-    return email
+def validate_phone(value):
+    """Validate Kenyan phone number format"""
+    if value is None:
+        return
+    pattern = r'^(?:\+254|0)(7|1)\d{8}$'
+    if not re.match(pattern, value):
+        raise ValidationError('Invalid phone number format. Use +2547XXXXXXXX or 07XXXXXXXX')
+
+def validate_password(value):
+    """Validate password strength"""
+    if len(value) < 8:
+        raise ValidationError('Password must be at least 8 characters long')
+    if not any(c.isupper() for c in value):
+        raise ValidationError('Password must contain at least one uppercase letter')
+    if not any(c.islower() for c in value):
+        raise ValidationError('Password must contain at least one lowercase letter')
+    if not any(c.isdigit() for c in value):
+        raise ValidationError('Password must contain at least one number')
+    if not any(c in '!@#$%^&*()_+-=[]{};:\'",.<>/?\\|`~' for c in value):
+        raise ValidationError('Password must contain at least one special character')
+    return value
 
 class RegisterSchema(Schema):
-    """Schema for user registration"""
-    email = fields.Email(required=True, validate=validate_email_format)
-    password = fields.Str(
-        required=True,
-        validate=[
-            validate.Length(min=8, max=50, error='Password must be between 8 and 50 characters'),
-            validate.Regexp(
-                r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)',
-                error='Password must contain at least one uppercase letter, one lowercase letter, and one number'
-            )
-        ]
-    )
+    """Registration request validation"""
+    email = fields.Email(required=True, error_messages={
+        'required': 'Email is required',
+        'invalid': 'Invalid email format'
+    })
+    password = fields.Str(required=True, validate=validate_password)
     full_name = fields.Str(required=True, validate=validate.Length(min=2, max=100))
-    phone_number = fields.Str(validate=validate.Length(max=20))
-    
-    class Meta:
-        ordered = True
-
+    phone_number = fields.Str(allow_none=True, validate=validate_phone)
+    role = fields.Str(allow_none=True, validate=validate.OneOf(['user', 'admin']))
 
 class LoginSchema(Schema):
-    """Schema for user login"""
-    email = fields.Email(required=True, validate=validate_email_format)
+    """Login request validation"""
+    email = fields.Email(required=True)
     password = fields.Str(required=True)
-    
-    class Meta:
-        ordered = True
-
-
-class UserResponseSchema(Schema):
-    """Schema for user response (excluding sensitive data)"""
-    id = fields.Int()
-    email = fields.Email()
-    full_name = fields.Str()
-    phone_number = fields.Str()
-    role = fields.Str()
-    is_active = fields.Boolean()
-    is_verified = fields.Boolean()
-    created_at = fields.DateTime()
-    updated_at = fields.DateTime()
-    
-    class Meta:
-        ordered = True
-
 
 class UpdateProfileSchema(Schema):
-    """Schema for profile update"""
+    """Profile update validation"""
     full_name = fields.Str(validate=validate.Length(min=2, max=100))
-    phone_number = fields.Str(validate=validate.Length(max=20))
-    
-    class Meta:
-        ordered = True
-
+    phone_number = fields.Str(allow_none=True, validate=validate_phone)
 
 class ChangePasswordSchema(Schema):
-    """Schema for password change"""
+    """Change password validation"""
     current_password = fields.Str(required=True)
-    new_password = fields.Str(
-        required=True,
-        validate=[
-            validate.Length(min=8, max=50),
-            validate.Regexp(
-                r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)',
-                error='Password must contain at least one uppercase letter, one lowercase letter, and one number'
-            )
-        ]
-    )
-    
-    class Meta:
-        ordered = True
-
+    new_password = fields.Str(required=True, validate=validate_password)
 
 class ForgotPasswordSchema(Schema):
-    """Schema for forgot password request"""
-    email = fields.Email(required=True, validate=validate_email_format)
-    
-    class Meta:
-        ordered = True
-
+    """Forgot password validation"""
+    email = fields.Email(required=True)
 
 class ResetPasswordSchema(Schema):
-    """Schema for password reset"""
+    """Reset password validation"""
     token = fields.Str(required=True)
-    new_password = fields.Str(
-        required=True,
-        validate=[
-            validate.Length(min=8, max=50),
-            validate.Regexp(
-                r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)',
-                error='Password must contain at least one uppercase letter, one lowercase letter, and one number'
-            )
-        ]
-    )
-    
-    class Meta:
-        ordered = True
+    new_password = fields.Str(required=True, validate=validate_password)
