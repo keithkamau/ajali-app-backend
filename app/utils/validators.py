@@ -1,39 +1,41 @@
 import re
-from marshmallow import ValidationError
 
-def validate_password_strength(password):
+def is_valid_email(email):
+    """Validate email format"""
+    if not email:
+        return False
+    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    return re.match(pattern, email) is not None
+
+def is_valid_password(password):
     """Validate password strength"""
-    if len(password) < 8:
-        raise ValidationError('Password must be at least 8 characters')
-    
-    if not re.search(r'[A-Z]', password):
-        raise ValidationError('Password must contain at least one uppercase letter')
-    
-    if not re.search(r'[a-z]', password):
-        raise ValidationError('Password must contain at least one lowercase letter')
-    
-    if not re.search(r'\d', password):
-        raise ValidationError('Password must contain at least one number')
-    
+    if not password or len(password) < 8:
+        return False
+    if not any(c.isupper() for c in password):
+        return False
+    if not any(c.islower() for c in password):
+        return False
+    if not any(c.isdigit() for c in password):
+        return False
+    if not any(c in '!@#$%^&*()_+-=[]{};:\'",.<>/?\\|`~' for c in password):
+        return False
     return True
 
-def validate_phone_number(phone):
-    """Validate Kenyan phone number"""
-    # Basic validation for Kenyan phone numbers
-    pattern = r'^(?:\+254|0)?[17]\d{8}$'
-    if not re.match(pattern, phone):
-        raise ValidationError('Invalid phone number format. Use format: +254712345678 or 0712345678')
-    return True
+def is_valid_phone(phone):
+    """Validate Kenyan phone number format"""
+    if not phone:
+        return True  # Phone number is optional
+    pattern = r'^(?:\+254|0)(7|1)\d{8}$'
+    return re.match(pattern, phone) is not None
 
-def sanitize_input(data):
-    """Sanitize input data to prevent XSS"""
-    if isinstance(data, str):
-        # Remove any HTML tags
-        return re.sub(r'<[^>]*>', '', data).strip()
-    return data
+def sanitize_input(text):
+    """Sanitize user input"""
+    if not text:
+        return text
+    # Remove leading/trailing whitespace
+    return text.strip()
 
-def validate_email_domain(email):
-    """Validate email domain is not disposable"""
-    # You can add disposable domain checking here
-    # For now, we'll just check it's a valid format
-    return True
+def validate_uuid(uuid_string):
+    """Validate UUID format"""
+    pattern = r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    return re.match(pattern, str(uuid_string)) is not None
