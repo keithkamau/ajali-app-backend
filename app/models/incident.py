@@ -1,69 +1,65 @@
-from datetime import datetime, timezone
-from enum import Enum
-
-from flask_sqlalchemy import SQLAlchemy
+from django.conf import settings
+from django.db import models
 
 
-db = SQLAlchemy()
+class Incident(models.Model):
+	class Status(models.TextChoices):
+		REPORTED = "reported", "Reported"
+		UNDER_REVIEW = "under_review", "Under review"
+		IN_PROGRESS = "in_progress", "In progress"
+		RESOLVED = "resolved", "Resolved"
+		REJECTED = "rejected", "Rejected"
+
+	user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="incidents")
+	title = models.CharField(max_length=120)
+	description = models.TextField()
+	type = models.CharField(max_length=40)
+	location_lat = models.DecimalField(max_digits=9, decimal_places=6)
+	location_lng = models.DecimalField(max_digits=9, decimal_places=6)
+	location_address = models.CharField(max_length=255)
+	status = models.CharField(max_length=20, choices=Status.choices, default=Status.REPORTED)
+	is_anonymous = models.BooleanField(default=False)
+	created_at = models.DateTimeField(auto_now_add=True)
+	updated_at = models.DateTimeField(auto_now=True)
+
+	class Meta:
+		ordering = ("-created_at",)
+		indexes = [
+			models.Index(fields=("user", "-created_at")),
+			models.Index(fields=("status", "-created_at")),
+			models.Index(fields=("type",)),
+			models.Index(fields=("location_lat", "location_lng")),
+		]
+
+	def __str__(self):
+		return self.title
 
 
-class IncidentStatus(str, Enum):
-	REPORTED = "reported"
-	UNDER_REVIEW = "under_review"
-	IN_PROGRESS = "in_progress"
-	RESOLVED = "resolved"
-	REJECTED = "rejected"
+class IncidentMedia(models.Model):
+	class MediaType(models.TextChoices):
+		IMAGE = "image", "Image"
+		VIDEO = "video", "Video"
+
+	incident = models.ForeignKey(Incident, on_delete=models.CASCADE, related_name="media")
+	media_type = models.CharField(max_length=10, choices=MediaType.choices)
+	media_url = models.URLField()
+	public_id = models.CharField(max_length=255, blank=True)
+	mime_type = models.CharField(max_length=100)
+	file_size_bytes = models.PositiveBigIntegerField()
+	uploaded_at = models.DateTimeField(auto_now_add=True)
+
+	class Meta:
+		indexes = [models.Index(fields=("incident",))]
 
 
-class IncidentMediaType(str, Enum):
-	IMAGE = "image"
-	VIDEO = "video"
+class IncidentStatusHistory(models.Model):
+	incident = models.ForeignKey(Incident, on_delete=models.CASCADE, related_name="status_history")
+	old_status = models.CharField(max_length=20, choices=Incident.Status.choices, null=True, blank=True)
+	new_status = models.CharField(max_length=20, choices=Incident.Status.choices)
+	changed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="incident_status_changes")
+	comment = models.TextField(blank=True)
+	changed_at = models.DateTimeField(auto_now_add=True)
 
-
-class Incident(db.Model):
-	__tablename__ = "incidents"
-
-	id = db.Column(db.BigInteger, primary_key=True)
-	user_id = db.Column(db.BigInteger, db.ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True)
-	title = db.Column(db.String(120), nullable=False)
-	description = db.Column(db.Text, nullable=False)
-	type = db.Column(db.String(40), nullable=False, index=True)
-	location_lat = db.Column(db.Numeric(9, 6), nullable=False)
-	location_lng = db.Column(db.Numeric(9, 6), nullable=False)
-	location_address = db.Column(db.String(255), nullable=False)
-	status = db.Column(db.Enum(IncidentStatus, name="incident_status"), nullable=False, default=IncidentStatus.REPORTED, index=True)
-	is_anonymous = db.Column(db.Boolean, nullable=False, default=False)
-	created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
-	updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
-
-	media = db.relationship("IncidentMedia", back_populates="incident", cascade="all, delete-orphan")
-	status_history = db.relationship("IncidentStatusHistory", back_populates="incident", cascade="all, delete-orphan", order_by="IncidentStatusHistory.changed_at.desc()")
-
-
-class IncidentMedia(db.Model):
-	__tablename__ = "incident_media"
-
-	id = db.Column(db.BigInteger, primary_key=True)
-	incident_id = db.Column(db.BigInteger, db.ForeignKey("incidents.id", ondelete="CASCADE"), nullable=False, index=True)
-	media_type = db.Column(db.Enum(IncidentMediaType, name="incident_media_type"), nullable=False)
-	media_url = db.Column(db.Text, nullable=False)
-	public_id = db.Column(db.String(255))
-	mime_type = db.Column(db.String(100), nullable=False)
-	file_size_bytes = db.Column(db.BigInteger, nullable=False)
-	uploaded_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
-
-	incident = db.relationship("Incident", back_populates="media")
-
-
-class IncidentStatusHistory(db.Model):
-	__tablename__ = "incident_status_history"
-
-	id = db.Column(db.BigInteger, primary_key=True)
-	incident_id = db.Column(db.BigInteger, db.ForeignKey("incidents.id", ondelete="CASCADE"), nullable=False, index=True)
-	old_status = db.Column(db.Enum(IncidentStatus, name="incident_status"), nullable=True)
-	new_status = db.Column(db.Enum(IncidentStatus, name="incident_status"), nullable=False)
-	changed_by = db.Column(db.BigInteger, db.ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
-	comment = db.Column(db.Text)
-	changed_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
-
-	incident = db.relationship("Incident", back_populates="status_history")
+	class Meta:
+		ordering = ("-changed_at",)
+		indexes = [models.Index(fields=("incident", "-changed_at"))]
