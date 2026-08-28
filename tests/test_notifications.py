@@ -215,3 +215,59 @@ def test_send_sms_skips_without_phone(app, db, sample_user):
         result = send_sms(sample_user, "Test SMS")
     assert result is False
     os.environ.pop("AT_API_KEY", None)
+
+
+# --- notify_incident_created ---
+
+class _FakeIncident:
+    def __init__(self, id, title, user_id):
+        self.id = id
+        self.title = title
+        self.user_id = user_id
+
+
+def test_notify_incident_created_stores_notification(app, sample_user):
+    from app.services.notification_service import notify_incident_created
+
+    incident = _FakeIncident(id=99, title="Pothole on Ngong Rd", user_id=sample_user.id)
+    with app.app_context():
+        notif = notify_incident_created(incident, sample_user)
+        assert notif is not None
+        assert notif.type == "incident_created"
+        assert "Pothole on Ngong Rd" in notif.message
+
+
+@patch("sendgrid.SendGridAPIClient")
+def test_notify_incident_created_sends_email_when_enabled(mock_cls, app, db, sample_user):
+    os.environ["SENDGRID_API_KEY"] = "test-key"
+    mock_instance = MagicMock()
+    mock_cls.return_value = mock_instance
+
+    from app.models.notification import NotificationPreference
+    from app.services.notification_service import notify_incident_created
+
+    incident = _FakeIncident(id=100, title="Broken Street Light", user_id=sample_user.id)
+    with app.app_context():
+        prefs = NotificationPreference(user_id=sample_user.id, email_enabled=True)
+        db.session.add(prefs)
+        db.session.commit()
+        notify_incident_created(incident, sample_user)
+
+    mock_instance.send.assert_called_once()
+    os.environ.pop("SENDGRID_API_KEY", None)
+
+
+def test_notify_incident_created_skips_email_when_disabled(app, db, sample_user):
+    os.environ.pop("SENDGRID_API_KEY", None)
+
+    from app.models.notification import NotificationPreference
+    from app.services.notification_service import notify_incident_created
+
+    incident = _FakeIncident(id=101, title="Flooded Road", user_id=sample_user.id)
+    with app.app_context():
+        prefs = NotificationPreference(user_id=sample_user.id, email_enabled=False)
+        db.session.add(prefs)
+        db.session.commit()
+        notif = notify_incident_created(incident, sample_user)
+
+    assert notif is not None

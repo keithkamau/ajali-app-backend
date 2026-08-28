@@ -109,6 +109,60 @@ def _status_email_html(user, incident_title, old_status, new_status):
 """
 
 
+def _incident_created_html(user, incident_title):
+    first_name = ((getattr(user, "full_name", "") or "").split() or ["there"])[0]
+    return f"""
+<html>
+<body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+  <div style="background:#e53935;padding:20px;border-radius:8px 8px 0 0;">
+    <h1 style="color:white;margin:0;font-size:24px;">Ajali!</h1>
+    <p style="color:rgba(255,255,255,.85);margin:4px 0 0;font-size:13px;">Smart. Fast. Verified.</p>
+  </div>
+  <div style="background:#f8f8f8;padding:24px;border-radius:0 0 8px 8px;">
+    <p>Hi {first_name},</p>
+    <p>Your incident report has been received and is under review.</p>
+    <div style="background:white;border-left:4px solid #e53935;padding:16px;margin:16px 0;border-radius:0 4px 4px 0;">
+      <p style="margin:0;font-weight:bold;">{incident_title}</p>
+    </div>
+    <p>We'll notify you as soon as the status changes.</p>
+    <p style="color:#999;font-size:12px;margin-top:24px;">
+      To manage notification preferences visit your account settings.
+    </p>
+  </div>
+</body>
+</html>
+"""
+
+
+def notify_incident_created(incident, user):
+    """
+    Call after a new incident is persisted to confirm submission to the reporter.
+
+    TM3 integration (add to POST /api/incidents/ after db.session.commit()):
+        from app.services.notification_service import notify_incident_created
+        notify_incident_created(incident, current_user)
+    """
+    notif = create_notification(
+        user_id=user.id,
+        notification_type="incident_created",
+        title="Incident Report Received",
+        message=f'Your incident "{incident.title}" has been submitted and is under review.',
+        data={"incident_id": incident.id},
+    )
+
+    prefs = NotificationPreference.query.filter_by(user_id=user.id).first()
+    email_ok = prefs.email_enabled if prefs else True
+
+    if email_ok:
+        send_email(
+            user,
+            f'Ajali: Incident "{incident.title}" received',
+            _incident_created_html(user, incident.title),
+        )
+
+    return notif
+
+
 def notify_status_change(incident, old_status, new_status):
     """
     Called by the admin status-update endpoint after persisting the new status.
