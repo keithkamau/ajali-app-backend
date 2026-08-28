@@ -23,7 +23,12 @@ def create_app(config_name="default"):
     with app.app_context():
         from .models import notification  # noqa: F401 — ensures models are registered
 
+    from .models import user  # noqa: F401
+
+    from .routes.auth_routes import auth_bp
     from .routes.notification_routes import notifications_bp
+
+    app.register_blueprint(auth_bp, url_prefix="/api/auth")
     app.register_blueprint(notifications_bp, url_prefix="/api/notifications")
 
     return app
